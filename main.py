@@ -1,27 +1,30 @@
 from fastapi import FastAPI
-from app.forecast import forecast_sales
-from app.data_loader import load_sales_data
+from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.langgraph_agent import build_sales_agent_graph
+from app.state import SalesAgentState
 
 app = FastAPI(title="Sales Forecasting Agent")
 
-# @app.get("/forecast")
-# def get_forecast():
-#     df = load_sales_data()
-#     result = forecast_sales(df)
-#     return result.tail(1).to_dict(orient="records")
+# Enable CORS if frontend like Streamlit
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-@app.get("/forecast")
-def get_forecast():
-    df = load_sales_data()
-    result = forecast_sales(df)
-    row = result.tail(1).to_dict(orient="records")[0]
-    
-    # Rename fields for better readability
-    renamed = {
-        "date": row["ds"],
-        "predicted_value": row["yhat"],
-        "lower_bound": row["yhat_lower"],
-        "upper_bound": row["yhat_upper"]
-    }
-    
-    return renamed
+class Query(BaseModel):
+    question: str
+
+@app.get("/")
+def health():
+    return {"message": "Sales Forecast Agent is running!"}
+
+@app.post("/agent/query")
+def run_agent_pipeline(query: Query):
+    graph = build_sales_agent_graph()
+    initial_state = SalesAgentState(query=query.question)
+    state = graph.invoke(initial_state)
+    return {"recommendation": state.get("recommendation")}

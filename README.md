@@ -7,3 +7,17 @@
 ## Run the FrontEnd
 
 ### streamlit run ui/streamlit_app.py
+
+
+
+[User Query]
+     ↓
+[SalesDataNode] → loads data
+     ↓
+[LLMNode] → decides whether to analyze raw, forecast, or both
+     ↓
+[ToolNode] → generates forecast (Prophet)
+     ↓
+[LLMNode] → generates recommendation
+     ↓
+[Response to User]

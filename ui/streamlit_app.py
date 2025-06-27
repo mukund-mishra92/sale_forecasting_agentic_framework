@@ -1,45 +1,61 @@
+# import streamlit as st
+# import requests
+
+# st.set_page_config(page_title="📊 Forecasting Agent", layout="centered")
+# st.title("🤖 Sales Forecasting Query Assistant")
+
+# st.markdown("""
+# Ask questions like:
+# - *Should I increase inventory next week?*
+# - *Is there a downward trend in sales?*
+# - *What are my sales for the next 7 days?*
+# """)
+
+# query = st.text_input("💬 Enter your business question")
+
+# if query:
+#     with st.spinner("Thinking..."):
+#         try:
+#             response = requests.post("http://localhost:8000/agent/query", json={"question": query})
+#             if response.status_code == 200:
+#                 st.success("✅ Agent Response:")
+#                 st.markdown(f"**{response.json()['recommendation']}**")
+#             else:
+#                 st.error(f"❌ Error from agent: {response.text}")
+#         except Exception as e:
+#             st.error(f"Connection error: {str(e)}")
+
+
 import streamlit as st
-import pandas as pd
 import requests
-import io
 
-st.set_page_config(page_title="Sales Forecasting Agent", layout="centered")
+st.set_page_config(page_title="📊 Forecasting Agent", layout="centered")
+st.title("🤖 Sales Forecasting Query Assistant")
 
-st.title("📈 Sales Forecasting Agent")
-st.markdown("Upload a sales CSV with `ds` (date) and `y` (sales value) columns.")
+st.markdown("""
+Ask questions like:
+- *Should I increase inventory next week?*
+- *Is there a downward trend in sales?*
+- *What are my sales for the next 7 days?*
+""")
 
-uploaded_file = st.file_uploader("Upload your sales CSV", type=["csv"])
+query = st.text_input("💬 Enter your business question")
 
-if uploaded_file:
-    try:
-        # Preview uploaded data
-        df = pd.read_csv(uploaded_file)
-        st.write("### Preview of Uploaded Data", df.head())
+if query:
+    with st.spinner("Thinking..."):
+        try:
+            response = requests.post("http://localhost:8000/agent/query", json={"question": query})
+            
+            if response.status_code == 200:
+                response_data = response.json()
 
-        # Save temporarily and send it to FastAPI if needed later
-        # Or just simulate backend POST
-        df.columns = ["ds", "y"]
-        df["ds"] = pd.to_datetime(df["ds"])
-        csv_buffer = io.StringIO()
-        df.to_csv(csv_buffer, index=False)
-        csv_content = csv_buffer.getvalue()
+                # Support both expected formats just in case
+                recommendation = response_data.get("recommendation") or response_data.get("output") or str(response_data)
 
-        st.write("### Forecast Result")
-        # Replace with your deployed URL or local FastAPI server
-        backend_url = "http://localhost:8000/forecast"
+                st.success("✅ Agent Response:")
+                st.markdown(f"**{recommendation}**")
 
-        # Call backend (which should use the latest sales.csv)
-        response = requests.get(backend_url)
-
-        if response.status_code == 200:
-            result = response.json()
-            st.success("Forecast for next time step:")
-            st.text_input("📅 Date", value=result["date"])
-            st.text_input("📈 Predicted Value", value=round(result["predicted_value"], 2))
-            st.text_input("🔻 Lower Bound", value=round(result["lower_bound"], 2))
-            st.text_input("🔺 Upper Bound", value=round(result["upper_bound"], 2))
-        else:
-            st.error(f"API error: {response.status_code} - {response.text}")
-
-    except Exception as e:
-        st.error(f"Error processing file: {str(e)}")
+            else:
+                st.error(f"❌ Error from agent: {response.text}")
+        except Exception as e:
+            st.error(f"⚠️ Connection error: {str(e)}")
