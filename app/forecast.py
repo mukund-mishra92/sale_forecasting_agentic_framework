@@ -1,25 +1,20 @@
-# from prophet import Prophet
-# import pandas as pd
-
-# def forecast_sales(df: pd.DataFrame):
-#     model = Prophet()
-#     model.fit(df)
-#     future = model.make_future_dataframe(periods=1)
-#     forecast = model.predict(future)
-#     #print(forecast.column())
-#     print(forecast)
-#     return forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']]
-
-from prophet import Prophet
 import pandas as pd
+import numpy as np
+from prophet import Prophet
+from statsmodels.tsa.seasonal import seasonal_decompose
 from langchain_core.runnables import Runnable
 from app.state import SalesAgentState
 
-# class ForecastNode(Runnable):
-#     def invoke(self, input: SalesAgentState, config=None):
-#         forecast_df = forecast_sales(input['sales_data'])
-#         input['forecast'] = forecast_df
-#         return input
+
+def forecast_sales(df: pd.DataFrame, periods: int = 7):
+    df = df.copy()
+    df["ds"] = pd.to_datetime(df["ds"])
+    model = Prophet()
+    model.fit(df)
+    future = model.make_future_dataframe(periods=periods)
+    forecast = model.predict(future)
+    return forecast[["ds", "yhat", "yhat_lower", "yhat_upper"]]
+
 
 class ForecastNode(Runnable):
     def invoke(self, state: SalesAgentState, config=None):
@@ -33,22 +28,29 @@ class ForecastNode(Runnable):
         return state
 
 
+def analyze_time_series(df: pd.DataFrame, period: int = 7):
+    if len(df) < period * 2:
+        raise ValueError(f"Not enough data to decompose. Need at least {period * 2} rows, got {len(df)}.")
 
-# def forecast_sales(df: pd.DataFrame):
-#     model = Prophet()
-#     model.fit(df)
-#     future = model.make_future_dataframe(periods=7)
-#     forecast = model.predict(future)
-#     return forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']]
-    
-def forecast_sales(df: pd.DataFrame):
-    model = Prophet()
-    model.fit(df)
-    future = model.make_future_dataframe(periods=7)
-    forecast = model.predict(future)
+    df = df.sort_values("ds").copy()
+    df["ds"] = pd.to_datetime(df["ds"])
+    df.set_index("ds", inplace=True)
 
-    result = forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']]
-    print("📈 Forecast Output:\n", result.tail(10))  # Add this
-    return result
+    decomposition = seasonal_decompose(df["y"], model="additive", period=period)
 
+    trend_strength = decomposition.trend.dropna().std()
+    seasonal_strength = decomposition.seasonal.dropna().std()
+    residual_strength = decomposition.resid.dropna().std()
 
+    components_df = pd.DataFrame({
+        "Trend": decomposition.trend,
+        "Seasonal": decomposition.seasonal,
+        "Residual": decomposition.resid,
+    })
+
+    return {
+        "trend_strength": trend_strength,
+        "seasonality_strength": seasonal_strength,
+        "residual_strength": residual_strength,
+        "components": components_df
+    }
